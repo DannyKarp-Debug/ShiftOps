@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShiftOps — UAV Ground Support Shift Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+/* ===== CSS VARIABLES ===== */
+:root {
+  --primary:#1e40af; --primary-light:#3b82f6; --primary-dark:#1e3a8a;
+  --accent:#f59e0b; --success:#16a34a; --success-light:#bbf7d0;
+  --danger:#dc2626; --danger-light:#fecaca; --warning:#f59e0b; --warning-light:#fef3c7;
+  --bg:#f1f5f9; --surface:#fff; --text:#1e293b; --text-light:#64748b;
+  --border:#e2e8f0; --sidebar-bg:#0f172a; --sidebar-text:#94a3b8;
+  --shift-day:#16a34a; --shift-day-bg:#f0fdf4;
+  --shift-night:#6d28d9; --shift-night-bg:#f5f3ff;
+  --shift-weekend:#d97706; --shift-weekend-bg:#fffbeb;
+  --radius:8px; --radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px rgba(0,0,0,.05);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:15px;height:100%}
+body{font-family:var(--font);color:var(--text);background:var(--bg);height:100%;overflow:hidden}
+a{color:var(--primary-light);text-decoration:none}
+input,select,textarea,button{font-family:inherit;font-size:inherit}
+
+/* ===== LAYOUT ===== */
+#app{display:flex;height:100vh;width:100vw}
+#sidebar{width:240px;min-width:240px;background:var(--sidebar-bg);display:flex;flex-direction:column;z-index:100}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#topbar{height:60px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;flex-shrink:0}
+#content{flex:1;overflow-y:auto;padding:28px}
+
+/* ===== SIDEBAR ===== */
+.sb-header{padding:22px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-header h1{color:#fff;font-size:1.25rem;font-weight:700;letter-spacing:-.5px}
+.sb-header p{color:var(--sidebar-text);font-size:.75rem;margin-top:2px}
+.sb-nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.sb-nav button{display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border:none;background:transparent;color:var(--sidebar-text);border-radius:var(--radius);cursor:pointer;font-size:.92rem;text-align:left;transition:all .15s}
+.sb-nav button:hover{background:rgba(255,255,255,.06);color:#e2e8f0}
+.sb-nav button.active{background:var(--primary);color:#fff;font-weight:600}
+.sb-nav button .icon{font-size:1.2rem;width:24px;text-align:center}
+.sb-footer{padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);color:var(--sidebar-text);font-size:.7rem}
+
+/* ===== TOPBAR ===== */
+#topbar h2{font-size:1.2rem;font-weight:700}
+#topbar .tb-date{color:var(--text-light);font-size:.85rem}
+
+/* ===== PAGES ===== */
+.page{display:none}.page.active{display:block}
+
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border:none;border-radius:var(--radius);font-weight:600;font-size:.9rem;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{transform:translateY(-1px);box-shadow:var(--shadow)}
+.btn:active{transform:translateY(0)}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+.btn-success{background:var(--success);color:#fff}.btn-success:hover{background:#15803d}
+.btn-danger{background:var(--danger);color:#fff}.btn-danger:hover{background:#b91c1c}
+.btn-warning{background:var(--warning);color:#fff}.btn-warning:hover{background:#b45309}
+.btn-outline{background:transparent;border:2px solid var(--border);color:var(--text)}.btn-outline:hover{border-color:var(--primary-light);color:var(--primary)}
+.btn-ghost{background:transparent;color:var(--text-light);padding:8px 12px}.btn-ghost:hover{background:var(--bg);color:var(--text)}
+.btn-sm{padding:6px 14px;font-size:.82rem}
+.btn-lg{padding:14px 28px;font-size:1rem}
+.btn-icon{padding:8px;border-radius:var(--radius);background:transparent;border:none;cursor:pointer;color:var(--text-light);font-size:1.1rem;transition:all .15s}
+.btn-icon:hover{background:var(--bg);color:var(--text)}
+
+/* ===== CARDS ===== */
+.card{background:var(--surface);border-radius:var(--radius-lg);border:1px solid var(--border);padding:24px;box-shadow:var(--shadow)}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card-header h3{font-size:1.05rem;font-weight:700}
+
+/* ===== STAT CARDS ===== */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--surface);border-radius:var(--radius-lg);padding:20px 24px;border:1px solid var(--border);box-shadow:var(--shadow)}
+.stat-card .stat-label{font-size:.8rem;color:var(--text-light);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.stat-card .stat-value{font-size:2rem;font-weight:800;margin-top:4px;color:var(--text)}
+.stat-card .stat-sub{font-size:.82rem;color:var(--text-light);margin-top:2px}
+.stat-card.accent-blue .stat-value{color:var(--primary)}
+.stat-card.accent-green .stat-value{color:var(--success)}
+.stat-card.accent-purple .stat-value{color:var(--shift-night)}
+.stat-card.accent-amber .stat-value{color:var(--accent)}
+
+/* ===== FORMS ===== */
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:.85rem;font-weight:600;color:var(--text);margin-bottom:6px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:var(--radius);font-size:.92rem;transition:border-color .15s;background:#fff}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--primary-light)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+/* ===== EMPLOYEE LIST ===== */
+.emp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.emp-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow);transition:all .15s;position:relative}
+.emp-card:hover{box-shadow:var(--shadow-lg);border-color:var(--primary-light)}
+.emp-card .emp-name{font-size:1.05rem;font-weight:700}
+.emp-card .emp-meta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.emp-card .emp-actions{display:flex;gap:6px;margin-top:14px}
+
+/* ===== BADGES ===== */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:700}
+.badge-leader{background:#dbeafe;color:#1e40af}
+.badge-employee{background:#f1f5f9;color:#475569}
+.badge-seniority{background:#f5f3ff;color:#6d28d9}
+.badge-day{background:var(--shift-day-bg);color:var(--shift-day)}
+.badge-night{background:var(--shift-night-bg);color:var(--shift-night)}
+.badge-weekend{background:var(--shift-weekend-bg);color:var(--shift-weekend)}
+.badge-warn{background:var(--warning-light);color:#92400e}
+.badge-ok{background:var(--success-light);color:#166534}
+
+/* ===== SCHEDULE GRID ===== */
+.schedule-controls{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+.week-nav{display:flex;align-items:center;gap:8px}
+.week-nav .week-label{font-size:1.08rem;font-weight:700;min-width:300px;text-align:center}
+.week-actions{display:flex;gap:8px;flex-wrap:wrap}
+.sched-grid{display:grid;grid-template-columns:80px repeat(7,1fr);gap:1px;background:var(--border);border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)}
+.sched-cell{background:var(--surface);padding:6px;min-height:100px;position:relative}
+.sched-header{background:#f8fafc;padding:10px 8px;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-light);text-align:center;display:flex;flex-direction:column;align-items:center;min-height:auto}
+.sched-header .day-name{font-size:.82rem}
+.sched-header .day-date{font-size:.72rem;color:var(--text-light);font-weight:500;margin-top:2px}
+.sched-row-label{background:#f8fafc;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.78rem;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px;writing-mode:vertical-lr;text-orientation:mixed;transform:rotate(180deg)}
+.shift-card{border-radius:6px;padding:8px;margin-bottom:4px;cursor:pointer;transition:all .15s;border-left:3px solid transparent;font-size:.78rem}
+.shift-card:hover{box-shadow:var(--shadow);transform:scale(1.02)}
+.shift-card.day-shift{background:var(--shift-day-bg);border-left-color:var(--shift-day)}
+.shift-card.night-shift{background:var(--shift-night-bg);border-left-color:var(--shift-night)}
+.shift-card.weekend-shift{background:var(--shift-weekend-bg);border-left-color:var(--shift-weekend)}
+.shift-card .shift-time{font-weight:700;font-size:.75rem;margin-bottom:4px}
+.shift-card .shift-people{font-size:.72rem;color:var(--text-light)}
+.shift-card .shift-people .leader-name{color:var(--primary);font-weight:600}
+.shift-card .no-leader-warn{color:var(--danger);font-weight:700;font-size:.7rem;margin-top:3px}
+.empty-week{text-align:center;padding:60px 20px}
+.empty-week h3{font-size:1.3rem;margin-bottom:8px;color:var(--text)}
+.empty-week p{color:var(--text-light);margin-bottom:20px}
+.sched-cell.weekend-col{background:#fffdf7}
+
+/* ===== REPORT ===== */
+#report-output{max-width:1000px;margin:0 auto}
+.report-container{background:#fff;border-radius:var(--radius-lg);border:1px solid var(--border);overflow:hidden}
+.report-header{background:var(--sidebar-bg);color:#fff;padding:28px 32px;text-align:center}
+.report-header h2{font-size:1.4rem;font-weight:800;margin-bottom:4px}
+.report-header p{color:var(--sidebar-text);font-size:.9rem}
+.report-table{width:100%;border-collapse:collapse}
+.report-table th{background:#f8fafc;padding:10px 12px;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px;color:var(--text-light);border-bottom:2px solid var(--border);text-align:center}
+.report-table td{padding:10px 12px;border-bottom:1px solid var(--border);text-align:center;font-size:.85rem;vertical-align:top}
+.report-table tr:last-child td{border-bottom:none}
+.report-table .rpt-day{font-weight:700;background:#f8fafc;text-align:left;white-space:nowrap}
+.report-table .rpt-weekend{background:var(--shift-weekend-bg)}
+.report-table .rpt-leader{color:var(--primary);font-weight:700}
+.report-table .rpt-time{font-weight:600;color:var(--text-light);font-size:.8rem}
+.report-footer{padding:16px 32px;background:#f8fafc;text-align:center;color:var(--text-light);font-size:.8rem;border-top:1px solid var(--border)}
+
+/* ===== MODALS ===== */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;align-items:center;justify-content:center;padding:20px}
+#modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);width:100%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.modal-sm{max-width:440px}.modal-md{max-width:600px}.modal-lg{max-width:800px}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:20px 24px;border-bottom:1px solid var(--border)}
+.modal-header h3{font-size:1.1rem;font-weight:700}
+.modal-body{padding:24px}
+.modal-footer{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--border);background:#f8fafc;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+
+/* ===== ASSIGNMENT LIST ===== */
+.assign-list{max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-top:8px}
+.assign-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.assign-item:last-child{border-bottom:none}
+.assign-item:hover{background:var(--bg)}
+.assign-item.checked{background:#eff6ff}
+.assign-item input[type="checkbox"]{width:18px;height:18px;accent-color:var(--primary);cursor:pointer}
+.assign-item .ai-name{font-weight:600;font-size:.9rem}
+.assign-item .ai-role{font-size:.78rem;color:var(--text-light)}
+
+/* ===== TOASTS ===== */
+#toast-container{position:fixed;top:20px;right:20px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+.toast{padding:14px 20px;border-radius:var(--radius);color:#fff;font-weight:600;font-size:.88rem;box-shadow:var(--shadow-lg);animation:slideIn .3s ease;min-width:280px;display:flex;align-items:center;gap:10px}
+.toast-success{background:#16a34a}.toast-error{background:#dc2626}.toast-info{background:#2563eb}.toast-warning{background:#d97706}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+.toast.removing{animation:slideOut .3s ease forwards}
+
+/* ===== SETTINGS ===== */
+.settings-section{margin-bottom:32px}
+.settings-section h3{font-size:1.05rem;font-weight:700;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+
+/* ===== HISTORY TABLE ===== */
+.history-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.history-table th{background:#f8fafc;padding:8px 12px;text-align:left;font-weight:700;border-bottom:2px solid var(--border);color:var(--text-light);font-size:.78rem;text-transform:uppercase}
+.history-table td{padding:8px 12px;border-bottom:1px solid var(--border)}
+.history-table tr:hover{background:#f8fafc}
+
+/* ===== ALERTS ===== */
+.alert{padding:14px 18px;border-radius:var(--radius);margin-bottom:16px;font-size:.88rem;display:flex;align-items:flex-start;gap:10px}
+.alert-warning{background:var(--warning-light);color:#92400e;border:1px solid #fde68a}
+.alert-info{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
+.alert-danger{background:var(--danger-light);color:#991b1b;border:1px solid #fca5a5}
+
+/* ===== HELPERS ===== */
+.mt-8{margin-top:8px}.mt-16{margin-top:16px}.mt-24{margin-top:24px}
+.mb-8{margin-bottom:8px}.mb-16{margin-bottom:16px}
+.text-center{text-align:center}
+.text-light{color:var(--text-light)}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+.gap-8{gap:8px}.gap-16{gap:16px}
+.hidden{display:none!important}
+
+/* ===== PRINT ===== */
+@media print{
+  #sidebar,#topbar,.schedule-controls,.btn,.no-print{display:none!important}
+  #main{margin:0}#content{padding:0;overflow:visible}
+  .report-container{border:none;box-shadow:none}
+}
+
+/* ===== MOBILE / TABLET ===== */
+@media (max-width: 900px){
+  html{font-size:14px}
+  body{overflow:auto}
+  #app{flex-direction:column;height:auto;min-height:100vh;width:100%}
+
+  #sidebar{width:100%;min-width:0;position:sticky;top:0}
+  .sb-header,.sb-footer{display:none}
+  .sb-nav{flex-direction:row;overflow-x:auto;padding:8px;gap:8px}
+  .sb-nav button{flex:0 0 auto;padding:10px 12px}
+
+  #topbar{height:auto;padding:12px 14px;gap:8px;align-items:flex-start;flex-direction:column}
+  #content{padding:14px}
+
+  .card{padding:16px}
+  .stats-row{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .emp-grid{grid-template-columns:1fr}
+  .schedule-controls{align-items:stretch}
+  .week-nav{justify-content:space-between}
+  .week-nav .week-label{min-width:0;font-size:.95rem;text-align:center;flex:1}
+
+  #page-schedule .card,
+  .report-container{overflow-x:auto}
+  .sched-grid{min-width:760px}
+  .report-table{min-width:760px}
+
+  .modal{max-height:85vh}
+  .modal-header,.modal-body,.modal-footer{padding:14px}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ===== SIDEBAR ===== -->
+  <nav id="sidebar">
+    <div class="sb-header">
+      <h1>✈ ShiftOps</h1>
+      <p>UAV Ground Support</p>
+    </div>
+    <div class="sb-nav">
+      <button data-page="dashboard" class="active" onclick="App.navigate('dashboard')">
+        <span class="icon">📊</span> Dashboard
+      </button>
+      <button data-page="employees" onclick="App.navigate('employees')">
+        <span class="icon">👥</span> Employees
+      </button>
+      <button data-page="schedule" onclick="App.navigate('schedule')">
+        <span class="icon">📅</span> Schedule
+      </button>
+      <button data-page="reports" onclick="App.navigate('reports')">
+        <span class="icon">📋</span> Reports
+      </button>
+      <button data-page="settings" onclick="App.navigate('settings')">
+        <span class="icon">⚙️</span> Settings
+      </button>
+    </div>
+    <div class="sb-footer">ShiftOps v1.0 — Data saved locally</div>
+  </nav>
+
+  <!-- ===== MAIN ===== -->
+  <div id="main">
+    <header id="topbar">
+      <h2 id="page-title">Dashboard</h2>
+      <span class="tb-date" id="topbar-date"></span>
+    </header>
+    <div id="content">
+
+      <!-- ===== DASHBOARD PAGE ===== -->
+      <div id="page-dashboard" class="page active"></div>
+
+      <!-- ===== EMPLOYEES PAGE ===== -->
+      <div id="page-employees" class="page"></div>
+
+      <!-- ===== SCHEDULE PAGE ===== -->
+      <div id="page-schedule" class="page"></div>
+
+      <!-- ===== REPORTS PAGE ===== -->
+      <div id="page-reports" class="page"></div>
+
+      <!-- ===== SETTINGS PAGE ===== -->
+      <div id="page-settings" class="page"></div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL ===== -->
+<div id="modal-overlay">
+  <div id="modal-container"></div>
+</div>
+
+<!-- ===== TOASTS ===== -->
+<div id="toast-container"></div>
+
+<script>
+/* ==========================================================================
+   ShiftOps — UAV Ground Support Shift Manager
+   Single-file application. All data persisted in localStorage.
+   ========================================================================== */
+
+// ─── Utility Helpers ──────────────────────────────────────────────────────────
+const U = {
+  id: () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+  qs: (s, p) => (p || document).querySelector(s),
+  qsa: (s, p) => [...(p || document).querySelectorAll(s)],
+  el: (tag, attrs = {}, html = '') => {
+    const e = document.createElement(tag);
+    Object.entries(attrs).forEach(([k, v]) => { if (k === 'className') e.className = v; else e.setAttribute(k, v); });
+    if (html) e.innerHTML = html;
+    return e;
+  },
+  formatDate: (d) => {
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  },
+  dayName: (idx) => ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][idx],
+  dayShort: (idx) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][idx],
+  dateAdd: (dateStr, days) => {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() + days);
+    return U.isoDate(d);
+  },
+  isoDate: (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  },
+  getWeekSunday: (date) => {
+    const d = date ? new Date(date + 'T00:00:00') : new Date();
+    const day = d.getDay();
+    d.setDate(d.getDate() - day);
+    return U.isoDate(d);
+  },
+  escHtml: (s) => {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+};
+
+// ─── DataStore Module ─────────────────────────────────────────────────────────
+const DataStore = {
+  _key: 'shiftops_',
+  _get(k) { try { return JSON.parse(localStorage.getItem(this._key + k)); } catch { return null; } },
+  _set(k, v) { localStorage.setItem(this._key + k, JSON.stringify(v)); },
+  _del(k) { localStorage.removeItem(this._key + k); },
+
+  getEmployees()        { return this._get('employees') || []; },
+  saveEmployees(list)   { this._set('employees', list); },
+
+  getWeek(weekId)       { return this._get('week_' + weekId); },
+  saveWeek(weekId, data){ this._set('week_' + weekId, data); },
+  deleteWeek(weekId)    { this._del('week_' + weekId); },
+
+  getAllWeekIds() {
+    const ids = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith(this._key + 'week_')) ids.push(k.replace(this._key + 'week_', ''));
+    }
+    return ids.sort();
+  },
+
+  exportAll() {
+    const data = { employees: this.getEmployees(), weeks: {} };
+    this.getAllWeekIds().forEach(id => { data.weeks[id] = this.getWeek(id); });
+    return JSON.stringify(data, null, 2);
+  },
+
+  importAll(json) {
+    const data = JSON.parse(json);
+    if (data.employees) this.saveEmployees(data.employees);
+    if (data.weeks) Object.entries(data.weeks).forEach(([id, w]) => this.saveWeek(id, w));
+  }
+};
+
+// ─── Employee Manager ─────────────────────────────────────────────────────────
+const EmpMgr = {
+  getAll()       { return DataStore.getEmployees(); },
+  getActive()    { return this.getAll().filter(e => e.active !== false); },
+  getById(id)    { return this.getAll().find(e => e.id === id); },
+  getLeaders()   { return this.getActive().filter(e => e.role === 'team_leader'); },
+
+  add(data) {
+    const list = this.getAll();
+    const emp = { id: U.id(), name: data.name.trim(), role: data.role, seniority: parseInt(data.seniority) || 1, active: true, createdAt: Date.now() };
+    list.push(emp);
+    DataStore.saveEmployees(list);
+    return emp;
+  },
+
+  update(id, data) {
+    const list = this.getAll();
+    const idx = list.findIndex(e => e.id === id);
+    if (idx === -1) return null;
+    list[idx] = { ...list[idx], name: data.name.trim(), role: data.role, seniority: parseInt(data.seniority) || 1 };
+    DataStore.saveEmployees(list);
+    return list[idx];
+  },
+
+  toggleActive(id) {
+    const list = this.getAll();
+    const emp = list.find(e => e.id === id);
+    if (!emp) return;
+    emp.active = !emp.active;
+    DataStore.saveEmployees(list);
+    return emp;
+  },
+
+  remove(id) {
+    let list = this.getAll();
+    list = list.filter(e => e.id !== id);
+    DataStore.saveEmployees(list);
+  },
+
+  getHistory(empId) {
+    const results = [];
+    DataStore.getAllWeekIds().forEach(wid => {
+      const week = DataStore.getWeek(wid);
+      if (!week || !week.shifts) return;
+      week.shifts.forEach(s => {
+        if (s.employees && s.employees.includes(empId)) {
+          results.push({ weekId: wid, date: s.date, dayIndex: s.dayIndex, type: s.type, startTime: s.startTime, endTime: s.endTime, label: s.label });
+        }
+      });
+    });
+    return results.sort((a, b) => a.date.localeCompare(b.date));
+  }
+};
+
+// ─── Schedule Manager ─────────────────────────────────────────────────────────
+const SchedMgr = {
+  SHIFT_TEMPLATE: [
+    { dayIndex: 0, type: 'day',     label: 'Day Shift',     startTime: '08:00', endTime: '18:00', isWeekend: false },
+    { dayIndex: 0, type: 'night',   label: 'Night Shift',   startTime: '18:00', endTime: '08:00', isWeekend: false },
+    { dayIndex: 1, type: 'day',     label: 'Day Shift',     startTime: '08:00', endTime: '18:00', isWeekend: false },
+    { dayIndex: 1, type: 'night',   label: 'Night Shift',   startTime: '18:00', endTime: '08:00', isWeekend: false },
+    { dayIndex: 2, type: 'day',     label: 'Day Shift',     startTime: '08:00', endTime: '18:00', isWeekend: false },
+    { dayIndex: 2, type: 'night',   label: 'Night Shift',   startTime: '18:00', endTime: '08:00', isWeekend: false },
+    { dayIndex: 3, type: 'day',     label: 'Day Shift',     startTime: '08:00', endTime: '18:00', isWeekend: false },
+    { dayIndex: 3, type: 'night',   label: 'Night Shift',   startTime: '18:00', endTime: '08:00', isWeekend: false },
+    { dayIndex: 4, type: 'day',     label: 'Day Shift',     startTime: '08:00', endTime: '18:00', isWeekend: false },
+    { dayIndex: 4, type: 'night',   label: 'Weekend Night',  startTime: '18:00', endTime: '08:00', isWeekend: true },
+    { dayIndex: 5, type: 'day',     label: 'Weekend Day',   startTime: '08:00', endTime: '18:00', isWeekend: true },
+    { dayIndex: 5, type: 'night',   label: 'Weekend Night', startTime: '18:00', endTime: '08:00', isWeekend: true },
+    { dayIndex: 6, type: 'day',     label: 'Weekend Day',   startTime: '08:00', endTime: '18:00', isWeekend: true },
+    { dayIndex: 6, type: 'night',   label: 'Weekend Night', startTime: '18:00', endTime: '08:00', isWeekend: true },
+  ],
+
+  getWeek(weekId) { return DataStore.getWeek(weekId); },
+
+  createFromTemplate(weekId) {
+    const shifts = this.SHIFT_TEMPLATE.map(t => ({
+      id: U.id(),
+      dayIndex: t.dayIndex,
+      date: U.dateAdd(weekId, t.dayIndex),
+      type: t.type,
+      label: t.label,
+      startTime: t.startTime,
+      endTime: t.endTime,
+      isWeekend: t.isWeekend,
+      employees: [],
+      notes: ''
+    }));
+    const week = { weekId, createdAt: Date.now(), shifts };
+    DataStore.saveWeek(weekId, week);
+    return week;
+  },
+
+  copyFromWeek(sourceWeekId, targetWeekId) {
+    const source = DataStore.getWeek(sourceWeekId);
+    if (!source) return null;
+    const shifts = source.shifts.map(s => ({
+      ...s,
+      id: U.id(),
+      date: U.dateAdd(targetWeekId, s.dayIndex),
+      employees: [...s.employees]
+    }));
+    const week = { weekId: targetWeekId, createdAt: Date.now(), shifts };
+    DataStore.saveWeek(targetWeekId, week);
+    return week;
+  },
+
+  updateShift(weekId, shiftId, updates) {
+    const week = DataStore.getWeek(weekId);
+    if (!week) return;
+    const shift = week.shifts.find(s => s.id === shiftId);
+    if (!shift) return;
+    Object.assign(shift, updates);
+    DataStore.saveWeek(weekId, week);
+    return shift;
+  },
+
+  setShiftEmployees(weekId, shiftId, empIds) {
+    return this.updateShift(weekId, shiftId, { employees: empIds });
+  },
+
+  deleteWeek(weekId) { DataStore.deleteWeek(weekId); },
+
+  getShiftWarnings(shift) {
+    const warns = [];
+    if (!shift.employees || shift.employees.length === 0) warns.push('No employees assigned');
+    else {
+      const hasLeader = shift.employees.some(eid => {
+        const e = EmpMgr.getById(eid);
+        return e && e.role === 'team_leader';
+      });
+      if (!hasLeader) warns.push('No Team Leader assigned');
+    }
+    return warns;
+  },
+
+  getWeekStats(weekId) {
+    const week = DataStore.getWeek(weekId);
+    if (!week) return null;
+    let totalSlots = week.shifts.length;
+    let filled = 0, warnings = 0, totalAssignments = 0;````
+    week.shifts.forEach(s => {
+      if (s.employees.length > 0) filled++;
+      totalAssignments += s.employees.length;
+      if (this.getShiftWarnings(s).length > 0) warnings++;
+    });
+    return { totalSlots, filled, warnings, totalAssignments };
+  },
+
+  getPrevWeekId(weekId) { return U.dateAdd(weekId, -7); },
+  getNextWeekId(weekId) { return U.dateAdd(weekId, 7); }
+};
+
+// ─── Report Generator ─────────────────────────────────────────────────────────
+const ReportGen = {
+  buildReportHTML(weekId) {
+    const week = SchedMgr.getWeek(weekId);
+    if (!week) return '<p class="text-center text-light mt-24">No schedule found for this week.</p>';
+
+    const endDate = U.dateAdd(weekId, 6);
+    let html = `<div class="report-container" id="report-capture">
+      <div class="report-header">
+        <h2>✈ Bar Dvir Hasan — Weekly Shift Schedule</h2>
+        <p>${U.formatDate(weekId)} — ${U.formatDate(endDate)}</p>
+      </div>
+      <table class="report-table"><thead><tr>
+        <th>Day</th><th>Date</th><th>Shift</th><th>Hours</th><th>Team Leader</th><th>Team Members</th>
+      </tr></thead><tbody>`;
+
+    for (let d = 0; d < 7; d++) {
+      const dayShifts = week.shifts.filter(s => s.dayIndex === d).sort((a, b) => a.type === 'day' ? -1 : 1);
+      dayShifts.forEach((s, i) => {
+        const isWE = s.isWeekend;
+        const weCls = isWE ? ' rpt-weekend' : '';
+        const leaders = s.employees.filter(eid => { const e = EmpMgr.getById(eid); return e && e.role === 'team_leader'; }).map(eid => EmpMgr.getById(eid)?.name || '?');
+        const members = s.employees.filter(eid => { const e = EmpMgr.getById(eid); return e && e.role !== 'team_leader'; }).map(eid => EmpMgr.getById(eid)?.name || '?');
+        html += `<tr class="${weCls}">`;
+        if (i === 0) html += `<td class="rpt-day${weCls}" rowspan="${dayShifts.length}">${U.dayName(d)}${isWE ? ' 🟡' : ''}</td>
+          <td class="rpt-day${weCls}" rowspan="${dayShifts.length}">${U.formatDate(s.date)}</td>`;
+        html += `<td><span class="badge badge-${s.isWeekend ? 'weekend' : s.type}">${s.label}</span></td>
+          <td class="rpt-time">${s.startTime} – ${s.endTime}</td>
+          <td class="rpt-leader">${leaders.length ? leaders.join(', ') : '<span style="color:#dc2626">—</span>'}</td>
+          <td>${members.length ? members.join(', ') : '<span style="color:#94a3b8">—</span>'}</td></tr>`;
+      });
+    }
+
+    html += `</tbody></table>
+      <div class="report-footer">Generated by ShiftOps • ${new Date().toLocaleString()}</div></div>`;
+    return html;
+  },
+
+  async exportAsImage() {
+    const el = U.qs('#report-capture');
+    if (!el) { Toast.show('No report to export', 'error'); return; }
+    if (typeof html2canvas === 'undefined') {
+      Toast.show('Image export library not loaded. Use Print instead.', 'warning');
+      window.print();
+      return;
+    }
+    let captureHost = null;
+    let captureEl = el;
+    try {
+      Toast.show('Generating image…', 'info');
+
+      // Build an off-screen clone to capture the entire report width, not just the visible scrolled area.
+      captureHost = document.createElement('div');
+      captureHost.style.position = 'fixed';
+      captureHost.style.left = '-100000px';
+      captureHost.style.top = '0';
+      captureHost.style.background = '#ffffff';
+      captureHost.style.padding = '0';
+      captureHost.style.margin = '0';
+
+      captureEl = el.cloneNode(true);
+      const fullWidth = Math.max(el.scrollWidth, el.getBoundingClientRect().width, 760);
+      captureEl.style.width = `${Math.ceil(fullWidth)}px`;
+      captureEl.style.maxWidth = 'none';
+      captureEl.style.overflow = 'visible';
+
+      const clonedTable = captureEl.querySelector('.report-table');
+      if (clonedTable) {
+        clonedTable.style.width = '100%';
+        clonedTable.style.minWidth = '0';
+      }
+
+      captureHost.appendChild(captureEl);
+      document.body.appendChild(captureHost);
+
+      const captureWidth = Math.ceil(Math.max(captureEl.scrollWidth, fullWidth));
+      const captureHeight = Math.ceil(Math.max(captureEl.scrollHeight, captureEl.getBoundingClientRect().height));
+
+      const canvas = await html2canvas(captureEl, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        width: captureWidth,
+        height: captureHeight,
+        windowWidth: captureWidth,
+        windowHeight: captureHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+      const filename = `ShiftOps_Report_${App.state.reportWeek}.png`;
+      const dataUrl = canvas.toDataURL('image/png');
+
+      // iOS Safari does not reliably support <a download>. Prefer native share when possible.
+      const canShareFiles = typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
+      if (canShareFiles) {
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (blob) {
+          const file = new File([blob], filename, { type: 'image/png' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'ShiftOps Report' });
+            Toast.show('Report image ready to save/share', 'success');
+            return;
+          }
+        }
+      }
+
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (isIOS) {
+        const w = window.open('', '_blank');
+        if (w) {
+          w.document.write(`<title>${filename}</title><meta name="viewport" content="width=device-width, initial-scale=1"><img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0 auto;">`);
+          w.document.close();
+          Toast.show('Image opened. Press and hold to save to Photos.', 'info', 4500);
+          return;
+        }
+      }
+
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = dataUrl;
+      link.rel = 'noopener';
+      link.click();
+      Toast.show('Report image downloaded!', 'success');
+    } catch (err) {
+      console.error(err);
+      Toast.show('Export failed — trying print fallback', 'warning');
+      window.print();
+    } finally {
+      if (captureHost && captureHost.parentNode) captureHost.parentNode.removeChild(captureHost);
+    }
+  }
+};
+
+// ─── Toast Notifications ──────────────────────────────────────────────────────
+const Toast = {
+  show(msg, type = 'info', duration = 3000) {
+    const container = U.qs('#toast-container');
+    const icons = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
+    const t = U.el('div', { className: `toast toast-${type}` }, `<span>${icons[type] || ''}</span> ${U.escHtml(msg)}`);
+    container.appendChild(t);
+    setTimeout(() => { t.classList.add('removing'); setTimeout(() => t.remove(), 300); }, duration);
+  }
+};
+
+// ─── Modal Controller ─────────────────────────────────────────────────────────
+const Modal = {
+  open(html, size = 'modal-md') {
+    const overlay = U.qs('#modal-overlay');
+    const container = U.qs('#modal-container');
+    container.innerHTML = `<div class="modal ${size}">${html}</div>`;
+    overlay.classList.add('open');
+    overlay.onclick = (e) => { if (e.target === overlay) Modal.close(); };
+  },
+  close() {
+    U.qs('#modal-overlay').classList.remove('open');
+    U.qs('#modal-container').innerHTML = '';
+  }
+};
+
+// ─── UI Rendering ─────────────────────────────────────────────────────────────
+const UI = {
+
+  // ——— DASHBOARD ———
+  renderDashboard() {
+    const el = U.qs('#page-dashboard');
+    const emps = EmpMgr.getActive();
+    const leaders = EmpMgr.getLeaders();
+    const currentWeek = U.getWeekSunday();
+    const stats = SchedMgr.getWeekStats(currentWeek);
+
+    let alertsHtml = '';
+    if (stats && stats.warnings > 0) {
+      alertsHtml += `<div class="alert alert-warning">⚠ <div><strong>${stats.warnings} shift(s)</strong> this week have warnings (missing Team Leader or unassigned).</div></div>`;
+    }
+    if (emps.length === 0) {
+      alertsHtml += `<div class="alert alert-info">ℹ <div>No employees added yet. <a href="#" onclick="App.navigate('employees');return false;">Add employees</a> to get started.</div></div>`;
+    }
+
+    el.innerHTML = `
+      ${alertsHtml}
+      <div class="stats-row">
+        <div class="stat-card accent-blue">
+          <div class="stat-label">Active Employees</div>
+          <div class="stat-value">${emps.length}</div>
+          <div class="stat-sub">${leaders.length} Team Leader${leaders.length !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="stat-card accent-green">
+          <div class="stat-label">This Week's Shifts</div>
+          <div class="stat-value">${stats ? stats.filled + '/' + stats.totalSlots : '—'}</div>
+          <div class="stat-sub">${stats ? 'shifts staffed' : 'No schedule created'}</div>
+        </div>
+        <div class="stat-card accent-purple">
+          <div class="stat-label">Total Assignments</div>
+          <div class="stat-value">${stats ? stats.totalAssignments : '—'}</div>
+          <div class="stat-sub">this week</div>
+        </div>
+        <div class="stat-card accent-amber">
+          <div class="stat-label">Weeks Scheduled</div>
+          <div class="stat-value">${DataStore.getAllWeekIds().length}</div>
+          <div class="stat-sub">in history</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Quick Actions</h3></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-lg" onclick="App.navigate('schedule')">📅 &nbsp;Open Schedule</button>
+          <button class="btn btn-success btn-lg" onclick="App.navigate('employees');setTimeout(()=>UI.showEmployeeModal(),100)">👤 &nbsp;Add Employee</button>
+          <button class="btn btn-outline btn-lg" onclick="App.navigate('reports')">📋 &nbsp;View Reports</button>
+        </div>
+      </div>
+      <div class="card mt-24">
+        <div class="card-header"><h3>Current Week: ${U.formatDate(currentWeek)} — ${U.formatDate(U.dateAdd(currentWeek, 6))}</h3></div>
+        ${stats ? this._renderMiniSchedule(currentWeek) : '<p class="text-light">No schedule created for this week. <a href="#" onclick="App.navigate(\'schedule\');return false;">Create one now →</a></p>'}
+      </div>`;
+  },
+
+  _renderMiniSchedule(weekId) {
+    const week = SchedMgr.getWeek(weekId);
+    if (!week) return '';
+    let html = '<div style="overflow-x:auto"><table class="history-table"><thead><tr><th>Day</th><th>Shift</th><th>Time</th><th>Staff</th><th>Status</th></tr></thead><tbody>';
+    week.shifts.forEach(s => {
+      const warns = SchedMgr.getShiftWarnings(s);
+      const statusBadge = warns.length === 0
+        ? '<span class="badge badge-ok">✓ OK</span>'
+        : `<span class="badge badge-warn">⚠ ${warns[0]}</span>`;
+      html += `<tr>
+        <td><strong>${U.dayShort(s.dayIndex)}</strong></td>
+        <td><span class="badge badge-${s.isWeekend ? 'weekend' : s.type}">${s.label}</span></td>
+        <td>${s.startTime} – ${s.endTime}</td>
+        <td>${s.employees.length} assigned</td>
+        <td>${statusBadge}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    return html;
+  },
+
+  // ——— EMPLOYEES ———
+  renderEmployees() {
+    const el = U.qs('#page-employees');
+    const all = EmpMgr.getAll();
+    const active = all.filter(e => e.active !== false);
+    const inactive = all.filter(e => e.active === false);
+
+    let html = `
+      <div class="flex-between mb-16" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <span class="text-light">${active.length} active employee${active.length !== 1 ? 's' : ''}${inactive.length ? `, ${inactive.length} inactive` : ''}</span>
+        </div>
+        <button class="btn btn-success btn-lg" onclick="UI.showEmployeeModal()">➕ &nbsp;Add Employee</button>
+      </div>`;
+
+    if (active.length === 0 && inactive.length === 0) {
+      html += `<div class="card text-center" style="padding:60px"><h3 style="margin-bottom:8px">No employees yet</h3><p class="text-light mb-16">Add your team members to start building schedules.</p><button class="btn btn-success btn-lg" onclick="UI.showEmployeeModal()">➕ Add First Employee</button></div>`;
+    } else {
+      html += `<div class="emp-grid">`;
+      const sorted = [...active].sort((a, b) => {
+        if (a.role === 'team_leader' && b.role !== 'team_leader') return -1;
+        if (a.role !== 'team_leader' && b.role === 'team_leader') return 1;
+        return b.seniority - a.seniority;
+      });
+      sorted.forEach(emp => {
+        const roleLabel = emp.role === 'team_leader' ? 'Team Leader' : 'Employee';
+        const roleBadge = emp.role === 'team_leader' ? 'badge-leader' : 'badge-employee';
+        const stars = '★'.repeat(emp.seniority) + '☆'.repeat(5 - emp.seniority);
+        html += `<div class="emp-card">
+          <div class="emp-name">${U.escHtml(emp.name)}</div>
+          <div class="emp-meta">
+            <span class="badge ${roleBadge}">${emp.role === 'team_leader' ? '⭐ ' : ''}${roleLabel}</span>
+            <span class="badge badge-seniority" title="Seniority: ${emp.seniority}/5">${stars}</span>
+          </div>
+          <div class="emp-actions">
+            <button class="btn btn-outline btn-sm" onclick="UI.showEmployeeModal('${emp.id}')">✏️ Edit</button>
+            <button class="btn btn-outline btn-sm" onclick="UI.showEmployeeHistory('${emp.id}')">📜 History</button>
+            <button class="btn btn-ghost btn-sm" onclick="UI.deactivateEmployee('${emp.id}')" title="Deactivate">🚫</button>
+          </div>
+        </div>`;
+      });
+      html += `</div>`;
+
+      if (inactive.length > 0) {
+        html += `<div class="card mt-24"><div class="card-header"><h3>Inactive Employees</h3></div>`;
+        html += `<div class="emp-grid">`;
+        inactive.forEach(emp => {
+          html += `<div class="emp-card" style="opacity:.6">
+            <div class="emp-name">${U.escHtml(emp.name)}</div>
+            <div class="emp-meta"><span class="badge badge-employee">Inactive</span></div>
+            <div class="emp-actions">
+              <button class="btn btn-success btn-sm" onclick="UI.reactivateEmployee('${emp.id}')">✅ Reactivate</button>
+              <button class="btn btn-danger btn-sm" onclick="UI.deleteEmployee('${emp.id}')">🗑️ Delete</button>
+            </div>
+          </div>`;
+        });
+        html += `</div></div>`;
+      }
+    }
+    el.innerHTML = html;
+  },
+
+  showEmployeeModal(empId) {
+    const emp = empId ? EmpMgr.getById(empId) : null;
+    const title = emp ? 'Edit Employee' : 'Add Employee';
+    const html = `
+      <div class="modal-header"><h3>${title}</h3><button class="btn-icon" onclick="Modal.close()">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="emp-name" value="${emp ? U.escHtml(emp.name) : ''}" placeholder="Enter employee name" autofocus>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Role</label>
+            <select id="emp-role">
+              <option value="employee" ${emp && emp.role === 'employee' ? 'selected' : ''}>Employee</option>
+              <option value="team_leader" ${emp && emp.role === 'team_leader' ? 'selected' : ''}>⭐ Team Leader</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Seniority Level (1–5)</label>
+            <select id="emp-seniority">
+              ${[1,2,3,4,5].map(n => `<option value="${n}" ${emp && emp.seniority === n ? 'selected' : ''}>${n} — ${'★'.repeat(n)}${'☆'.repeat(5-n)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="UI.saveEmployee('${empId || ''}')">${emp ? 'Save Changes' : 'Add Employee'}</button>
+      </div>`;
+    Modal.open(html, 'modal-md');
+    setTimeout(() => U.qs('#emp-name')?.focus(), 100);
+  },
+
+  saveEmployee(empId) {
+    const name = U.qs('#emp-name').value.trim();
+    const role = U.qs('#emp-role').value;
+    const seniority = U.qs('#emp-seniority').value;
+    if (!name) { Toast.show('Please enter a name', 'error'); return; }
+    if (empId) {
+      EmpMgr.update(empId, { name, role, seniority });
+      Toast.show('Employee updated', 'success');
+    } else {
+      EmpMgr.add({ name, role, seniority });
+      Toast.show('Employee added', 'success');
+    }
+    Modal.close();
+    UI.renderEmployees();
+    UI.renderDashboard();
+  },
+
+  deactivateEmployee(empId) {
+    const emp = EmpMgr.getById(empId);
+    if (!emp) return;
+    Modal.open(`
+      <div class="modal-header"><h3>Deactivate Employee</h3><button class="btn-icon" onclick="Modal.close()">✕</button></div>
+      <div class="modal-body">
+        <p>Are you sure you want to deactivate <strong>${U.escHtml(emp.name)}</strong>?</p>
+        <p class="text-light mt-8">They will be removed from future shift assignments but their history will be preserved.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-warning" onclick="EmpMgr.toggleActive('${empId}');Modal.close();UI.renderEmployees();UI.renderDashboard();Toast.show('Employee deactivated','info')">Deactivate</button>
+      </div>`, 'modal-sm');
+  },
+
+  reactivateEmployee(empId) {
+    EmpMgr.toggleActive(empId);
+    UI.renderEmployees();
+    UI.renderDashboard();
+    Toast.show('Employee reactivated', 'success');
+  },
+
+  deleteEmployee(empId) {
+    const emp = EmpMgr.getById(empId);
+    if (!emp) return;
+    Modal.open(`
+      <div class="modal-header"><h3>Delete Employee Permanently</h3><button class="btn-icon" onclick="Modal.close()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-danger">⚠ <div>This will <strong>permanently delete</strong> ${U.escHtml(emp.name)} and cannot be undone. Their name may show as "Unknown" in historical shifts.</div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-danger" onclick="EmpMgr.remove('${empId}');Modal.close();UI.renderEmployees();UI.renderDashboard();Toast.show('Employee deleted','info')">Delete Permanently</button>
+      </div>`, 'modal-sm');
+  },
+
+  showEmployeeHistory(empId) {
+    const emp = EmpMgr.getById(empId);
+    if (!emp) return;
+    const history = EmpMgr.getHistory(empId);
+    let tableHtml;
+    if (history.length === 0) {
+      tableHtml = '<p class="text-light mt-16 text-center">No shift history found.</p>';
+    } else {
+      tableHtml = `<div style="max-height:400px;overflow-y:auto" class="mt-8"><table class="history-table"><thead><tr><th>Date</th><th>Day</th><th>Shift</th><th>Hours</th></tr></thead><tbody>`;
+      history.forEach(h => {
+        tableHtml += `<tr><td>${U.formatDate(h.date)}</td><td>${U.dayName(h.dayIndex)}</td><td><span class="badge badge-${h.type === 'day' && !h.label.toLowerCase().includes('weekend') ? 'day' : h.type === 'night' && !h.label.toLowerCase().includes('weekend') ? 'night' : 'weekend'}">${h.label}</span></td><td>${h.startTime} – ${h.endTime}</td></tr>`;
+      });
+      tableHtml += '</tbody></table></div>';
+    }
+    Modal.open(`
+      <div class="modal-header"><h3>📜 Shift History — ${U.escHtml(emp.name)}</h3><button class="btn-icon" onclick="Modal.close()">✕</button></div>
+      <div class="modal-body">
+        <p class="text-light">${history.length} shift${history.length !== 1 ? 's' : ''} on record</p>
+        ${tableHtml}
+      </div>
+      <div class="modal-footer"><button class="btn btn-outline" onclick="Modal.close()">Close</button></div>`, 'modal-lg');
+  },
+
+  // ——— SCHEDULE ———
+  renderSchedule() {
+    const el = U.qs('#page-schedule');
+    const weekId = App.state.scheduleWeek;
+    const week = SchedMgr.getWeek(weekId);
+    const endDate = U.dateAdd(weekId, 6);
+
+    let html = `
+      <div class="schedule-controls">
+        <div class="week-nav">
+          <button class="btn btn-outline" onclick="App.state.scheduleWeek=SchedMgr.getPrevWeekId(App.state.scheduleWeek);UI.renderSchedule()">◀ Prev</button>
+          <div class="week-label">${U.formatDate(weekId)} — ${U.formatDate(endDate)}</div>
+          <button class="btn btn-outline" onclick="App.state.scheduleWeek=SchedMgr.getNextWeekId(App.state.scheduleWeek);UI.renderSchedule()">Next ▶</button>
+          <button class="btn btn-ghost btn-sm" onclick="App.state.scheduleWeek=U.getWeekSunday();UI.renderSchedule()">Today</button>
+        </div>
+        <div class="week-actions">`;
+
+    if (!week) {
+      html += `<button class="btn btn-success btn-lg" onclick="UI.createWeekSchedule('template')">📅 Create from Template</button>`;
+      const prevId = SchedMgr.getPrevWeekId(weekId);
+      if (SchedMgr.getWeek(prevId)) {
+        html += `<button class="btn btn-primary btn-lg" onclick="UI.createWeekSchedule('copy')">📋 Copy Previous Week</button>`;
+      }
+    } else {
+      html += `<button class="btn btn-danger btn-sm" onclick="UI.deleteWeekSchedule()">🗑️ Delete Week</button>`;
+    }
+    html += `</div></div>`;
+
+    if (!week) {
+      html += `<div class="empty-week card"><h3>No schedule for this week</h3><p>Create a new schedule using the buttons above.</p></div>`;
+    } else {
+      html += this._renderScheduleGrid(weekId, week);
+    }
+    el.innerHTML = html;
+  },
+
+  _renderScheduleGrid(weekId, week) {
+    let html = '<div style="overflow-x:auto"><div class="sched-grid">';
+
+    // Header row
+    html += '<div class="sched-cell sched-header"></div>';
+    for (let d = 0; d < 7; d++) {
+      const date = U.dateAdd(weekId, d);
+      const isWE = d >= 5 || d === 4; // Fri, Sat, and Thu (partial)
+      html += `<div class="sched-cell sched-header${d >= 5 ? ' weekend-col' : ''}">
+        <span class="day-name">${U.dayShort(d)}</span>
+        <span class="day-date">${U.formatDate(date)}</span>
+        ${d >= 5 ? '<span class="badge badge-weekend" style="margin-top:4px;font-size:.65rem">Weekend</span>' : ''}
+      </div>`;
+    }
+
+    // Day shift row
+    html += '<div class="sched-cell sched-row-label">Day</div>';
+    for (let d = 0; d < 7; d++) {
+      const shifts = week.shifts.filter(s => s.dayIndex === d && s.type === 'day');
+      html += `<div class="sched-cell${d >= 5 ? ' weekend-col' : ''}">`;
+      shifts.forEach(s => { html += this._renderShiftCard(weekId, s); });
+      if (shifts.length === 0) html += `<div style="text-align:center;padding:20px;color:var(--text-light);font-size:.8rem">No shift</div>`;
+      html += `</div>`;
+    }
+
+    // Night shift row
+    html += '<div class="sched-cell sched-row-label">Night</div>';
+    for (let d = 0; d < 7; d++) {
+      const shifts = week.shifts.filter(s => s.dayIndex === d && s.type === 'night');
+      html += `<div class="sched-cell${d >= 5 ? ' weekend-col' : ''}${d === 4 ? ' weekend-col' : ''}">`;
+      shifts.forEach(s => { html += this._renderShiftCard(weekId, s); });
+      if (shifts.length === 0) html += `<div style="text-align:center;padding:20px;color:var(--text-light);font-size:.8rem">No shift</div>`;
+      html += `</div>`;
+    }
+
+    html += '</div></div>';
+    return html;
+  },
+
+  _renderShiftCard(weekId, shift) {
+    const warns = SchedMgr.getShiftWarnings(shift);
+    const cls = shift.isWeekend ? 'weekend-shift' : (shift.type === 'day' ? 'day-shift' : 'night-shift');
+
+    let empHtml = '';
+    if (shift.employees.length === 0) {
+      empHtml = '<div class="shift-people" style="color:var(--text-light);font-style:italic">No staff assigned</div>';
+    } else {
+      const names = shift.employees.map(eid => {
+        const e = EmpMgr.getById(eid);
+        if (!e) return '<span style="color:var(--danger)">Unknown</span>';
+        return e.role === 'team_leader'
+          ? `<span class="leader-name">⭐ ${U.escHtml(e.name)}</span>`
+          : U.escHtml(e.name);
+      });
+      empHtml = `<div class="shift-people">${names.join('<br>')}</div>`;
+    }
+
+    const warnHtml = warns.some(w => w.includes('Team Leader'))
+      ? '<div class="no-leader-warn">⚠ No Team Leader</div>'
+      : '';
+
+    return `<div class="shift-card ${cls}" onclick="UI.showShiftModal('${weekId}','${shift.id}')">
+      <div class="shift-time">${shift.startTime} – ${shift.endTime}</div>
+      ${empHtml}${warnHtml}
+    </div>`;
+  },
+
+  createWeekSchedule(mode) {
+    const weekId = App.state.scheduleWeek;
+    if (mode === 'template') {
+      SchedMgr.createFromTemplate(weekId);
+      Toast.show('Week schedule created from template', 'success');
+    } else if (mode === 'copy') {
+      const prevId = SchedMgr.getPrevWeekId(weekId);
+      SchedMgr.copyFromWeek(prevId, weekId);
+      Toast.show('Schedule copied from previous week', 'success');
+    }
+    UI.renderSchedule();
+    UI.renderDashboard();
+  },
+
+  deleteWeekSchedule() {
+    const weekId = App.state.scheduleWeek;
+    Modal.open(`
+      <div class="modal-header"><h3>Delete Week Schedule</h3><button class="btn-icon" onclick="Modal.close()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-danger">⚠ <div>This will delete the entire schedule for the week of <strong>${U.formatDate(weekId)}</strong>. This cannot be undone.</div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-danger" onclick="SchedMgr.deleteWeek('${weekId}');Modal.close();UI.renderSchedule();UI.renderDashboard();Toast.show('Week deleted','info')">Delete</button>
+      </div>`, 'modal-sm');
+  },
+
+  showShiftModal(weekId, shiftId) {
+    const week = SchedMgr.getWeek(weekId);
+    if (!week) return;
+    const shift = week.shifts.find(s => s.id === shiftId);
+    if (!shift) return;
+    const allEmps = EmpMgr.getActive().sort((a, b) => {
+      if (a.role === 'team_leader' && b.role !== 'team_leader') return -1;
+      if (a.role !== 'team_leader' && b.role === 'team_leader') return 1;
+      return b.seniority - a.seniority;
+    });
+
+    // Check for conflicts with other shifts on same day
+    const otherShifts = week.shifts.filter(s => s.dayIndex === shift.dayIndex && s.id !== shift.id);
+
+    let empListHtml = '';
+    if (allEmps.length === 0) {
+      empListHtml = '<p class="text-light text-center" style="padding:20px">No active employees. Add employees first.</p>';
+    } else {
+      empListHtml = '<div class="assign-list">';
+      allEmps.forEach(emp => {
+        const checked = shift.employees.includes(emp.id);
+        const isLeader = emp.role === 'team_leader';
+        // Check if assigned to another shift this day
+        const conflict = otherShifts.find(os => os.employees.includes(emp.id));
+        const conflictNote = conflict ? `<span style="color:var(--warning);font-size:.72rem;margin-left:8px">⚠ Also on ${conflict.label}</span>` : '';
+        empListHtml += `<div class="assign-item${checked ? ' checked' : ''}" onclick="this.querySelector('input').click()">
+          <input type="checkbox" value="${emp.id}" ${checked ? 'checked' : ''} onclick="event.stopPropagation();this.closest('.assign-item').classList.toggle('checked')">
+          <div>
+            <div class="ai-name">${isLeader ? '⭐ ' : ''}${U.escHtml(emp.name)}${conflictNote}</div>
+            <div class="ai-role">${isLeader ? 'Team Leader' : 'Employee'} · Seniority ${emp.seniority}/5</div>
+          </div>
+        </div>`;
+      });
+      empListHtml += '</div>';
+    }
+
+    const dayLabel = `${U.dayName(shift.dayIndex)}, ${U.formatDate(shift.date)}`;
+    Modal.open(`
+      <div class="modal-header">
+        <h3>Edit Shift — ${dayLabel}</h3>
+        <button class="btn-icon" onclick="Modal.close()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Shift Label</label>
+            <input type="text" id="shift-label" value="${U.escHtml(shift.label)}">
+          </div>
+          <div class="form-group">
+            <label>Weekend Shift?</label>
+            <select id="shift-weekend">
+              <option value="false" ${!shift.isWeekend ? 'selected' : ''}>No — Regular</option>
+              <option value="true" ${shift.isWeekend ? 'selected' : ''}>Yes — Weekend</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Time</label>
+            <input type="time" id="shift-start" value="${shift.startTime}">
+          </div>
+          <div class="form-group">
+            <label>End Time</label>
+            <input type="time" id="shift-end" value="${shift.endTime}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="shift-notes" rows="2" placeholder="Optional shift notes…">${U.escHtml(shift.notes || '')}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Assign Employees</label>
+          ${empListHtml}
+        </div>
+        <div id="shift-leader-warning" class="alert alert-warning hidden">⚠ <div>No Team Leader is assigned to this shift!</div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-primary" onclick="UI.saveShift('${weekId}','${shiftId}')">💾 &nbsp;Save Shift</button>
+      </div>`, 'modal-lg');
+
+    // Live leader warning
+    setTimeout(() => {
+      const checkboxes = U.qsa('.assign-list input[type="checkbox"]');
+      const updateWarn = () => {
+        const selected = U.qsa('.assign-list input[type="checkbox"]:checked').map(cb => cb.value);
+        const hasLeader = selected.some(eid => { const e = EmpMgr.getById(eid); return e && e.role === 'team_leader'; });
+        const warnEl = U.qs('#shift-leader-warning');
+        if (warnEl) { if (hasLeader || selected.length === 0) warnEl.classList.add('hidden'); else warnEl.classList.remove('hidden'); }
+      };
+      checkboxes.forEach(cb => cb.addEventListener('change', updateWarn));
+      updateWarn();
+    }, 50);
+  },
+
+  saveShift(weekId, shiftId) {
+    const label = U.qs('#shift-label').value.trim() || 'Shift';
+    const isWeekend = U.qs('#shift-weekend').value === 'true';
+    const startTime = U.qs('#shift-start').value;
+    const endTime = U.qs('#shift-end').value;
+    const notes = U.qs('#shift-notes').value.trim();
+    const empIds = U.qsa('.assign-list input[type="checkbox"]:checked').map(cb => cb.value);
+
+    SchedMgr.updateShift(weekId, shiftId, { label, isWeekend, startTime, endTime, notes, employees: empIds });
+    Modal.close();
+    UI.renderSchedule();
+    UI.renderDashboard();
+    Toast.show('Shift updated', 'success');
+  },
+
+  // ——— REPORTS ———
+  renderReports() {
+    const el = U.qs('#page-reports');
+    const weekId = App.state.reportWeek;
+    const endDate = U.dateAdd(weekId, 6);
+    const week = SchedMgr.getWeek(weekId);
+
+    el.innerHTML = `
+      <div class="schedule-controls no-print">
+        <div class="week-nav">
+          <button class="btn btn-outline" onclick="App.state.reportWeek=SchedMgr.getPrevWeekId(App.state.reportWeek);UI.renderReports()">◀ Prev</button>
+          <div class="week-label">${U.formatDate(weekId)} — ${U.formatDate(endDate)}</div>
+          <button class="btn btn-outline" onclick="App.state.reportWeek=SchedMgr.getNextWeekId(App.state.reportWeek);UI.renderReports()">Next ▶</button>
+          <button class="btn btn-ghost btn-sm" onclick="App.state.reportWeek=U.getWeekSunday();UI.renderReports()">Today</button>
+        </div>
+        <div class="week-actions">
+          ${week ? `
+            <button class="btn btn-primary btn-lg" onclick="ReportGen.exportAsImage()">📸 &nbsp;Download as Image</button>
+            <button class="btn btn-outline" onclick="window.print()">🖨️ Print</button>
+          ` : ''}
+        </div>
+      </div>
+      <div id="report-output">
+        ${week ? ReportGen.buildReportHTML(weekId) : '<div class="card text-center" style="padding:60px"><h3>No schedule for this week</h3><p class="text-light">Navigate to a week that has a schedule, or create one first.</p></div>'}
+      </div>`;
+  },
+
+  // ——— SETTINGS ———
+  renderSettings() {
+    const el = U.qs('#page-settings');
+    const weekCount = DataStore.getAllWeekIds().length;
+    const empCount = EmpMgr.getAll().length;
+
+    el.innerHTML = `
+      <div class="settings-section">
+        <h3>📦 Data Backup & Restore</h3>
+        <p class="text-light mb-16">Your data is stored in this browser's local storage. Export a backup to keep your data safe or transfer to another computer.</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-lg" onclick="UI.exportData()">💾 &nbsp;Export Backup File</button>
+          <button class="btn btn-outline btn-lg" onclick="U.qs('#import-file').click()">📂 &nbsp;Import Backup File</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="UI.importData(event)">
+        </div>
+        <p class="text-light mt-8" style="font-size:.82rem">Current data: ${empCount} employees, ${weekCount} week schedules</p>
+      </div>
+
+      <div class="settings-section">
+        <h3>🗑️ Clear All Data</h3>
+        <div class="alert alert-danger">⚠ <div>This will permanently delete ALL employees and schedules. Make sure to export a backup first!</div></div>
+        <button class="btn btn-danger" onclick="UI.clearAllData()">Delete All Data</button>
+      </div>
+
+      <div class="settings-section">
+        <h3>ℹ️ About ShiftOps</h3>
+        <p class="text-light">Version 1.0 — UAV Ground Support Shift Manager</p>
+        <p class="text-light mt-8">All data is stored locally in your browser using localStorage. No data leaves your computer. For best results, use a modern browser (Chrome, Edge, Firefox).</p>
+        <p class="text-light mt-8">To share this app with another computer, simply copy the HTML file. To transfer data, use the Export/Import backup feature above.</p>
+      </div>`;
+  },
+
+  exportData() {
+    const json = DataStore.exportAll();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ShiftOps_Backup_${U.isoDate(new Date())}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    Toast.show('Backup file downloaded', 'success');
+  },
+
+  importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        DataStore.importAll(e.target.result);
+        Toast.show('Data imported successfully!', 'success');
+        App.refreshAll();
+      } catch (err) {
+        Toast.show('Invalid backup file', 'error');
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  },
+
+  clearAllData() {
+    Modal.open(`
+      <div class="modal-header"><h3>⚠️ Delete All Data</h3><button class="btn-icon" onclick="Modal.close()">✕</button></div>
+      <div class="modal-body">
+        <div class="alert alert-danger">⚠ <div>This will <strong>permanently delete ALL data</strong> — employees, schedules, and history. This action cannot be undone.</div></div>
+        <p class="mt-16">Type <strong>DELETE</strong> to confirm:</p>
+        <div class="form-group mt-8"><input type="text" id="confirm-delete" placeholder="Type DELETE here"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="Modal.close()">Cancel</button>
+        <button class="btn btn-danger" onclick="UI.confirmClearAll()">Delete Everything</button>
+      </div>`, 'modal-sm');
+  },
+
+  confirmClearAll() {
+    if (U.qs('#confirm-delete').value !== 'DELETE') {
+      Toast.show('Type DELETE to confirm', 'error');
+      return;
+    }
+    // Remove all shiftops keys
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('shiftops_')) keys.push(k);
+    }
+    keys.forEach(k => localStorage.removeItem(k));
+    Modal.close();
+    Toast.show('All data deleted', 'info');
+    App.refreshAll();
+  }
+};
+
+// ─── App Controller ───────────────────────────────────────────────────────────
+const App = {
+  state: {
+    currentPage: 'dashboard',
+    scheduleWeek: U.getWeekSunday(),
+    reportWeek: U.getWeekSunday()
+  },
+
+  init() {
+    // Update topbar date
+    const updateDate = () => {
+      U.qs('#topbar-date').textContent = new Date().toLocaleString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    };
+    updateDate();
+    setInterval(updateDate, 30000);
+
+    // Render initial page
+    this.navigate('dashboard');
+  },
+
+  navigate(page) {
+    this.state.currentPage = page;
+
+    // Update sidebar
+    U.qsa('.sb-nav button').forEach(b => b.classList.toggle('active', b.dataset.page === page));
+
+    // Update pages
+    U.qsa('.page').forEach(p => p.classList.remove('active'));
+    const pageEl = U.qs('#page-' + page);
+    if (pageEl) pageEl.classList.add('active');
+
+    // Update title
+    const titles = { dashboard: 'Dashboard', employees: 'Employees', schedule: 'Shift Schedule', reports: 'Reports', settings: 'Settings' };
+    U.qs('#page-title').textContent = titles[page] || page;
+
+    // Render content
+    this.renderPage(page);
+  },
+
+  renderPage(page) {
+    switch (page) {
+      case 'dashboard': UI.renderDashboard(); break;
+      case 'employees': UI.renderEmployees(); break;
+      case 'schedule':  UI.renderSchedule(); break;
+      case 'reports':   UI.renderReports(); break;
+      case 'settings':  UI.renderSettings(); break;
+    }
+  },
+
+  refreshAll() {
+    this.renderPage(this.state.currentPage);
+  }
+};
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>
